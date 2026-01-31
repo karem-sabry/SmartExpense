@@ -11,7 +11,7 @@ namespace SmartExpense.Infrastructure.Data;
 
 public static class DbInitializer
 {
-       public static async Task SeedDataAsync(AppDbContext context, UserManager<User> userManager,
+    public static async Task SeedDataAsync(AppDbContext context, UserManager<User> userManager,
         RoleManager<IdentityRole<Guid>> roleManager, IOptions<AdminUserOptions> adminOptions, ILogger logger,
         IDateTimeProvider dateTimeProvider)
     {
@@ -23,6 +23,9 @@ public static class DbInitializer
 
         //Seed admin user if doesn't exist
         await SeedAdminUserAsync(userManager, adminOptions.Value, logger, dateTimeProvider);
+        
+        // Seed Categories if they don't exist
+        await SeedCategoriesAsync(context);
     }
 
     private static async Task SeedRolesAsync(RoleManager<IdentityRole<Guid>> roleManager)
@@ -49,6 +52,27 @@ public static class DbInitializer
         }
     }
 
+    private static async Task SeedCategoriesAsync(AppDbContext context)
+    {
+        var systemCategories = new List<Category>
+        {
+            new() { Name = "Food & Dining", Icon = "🍔", Color = "#FF6B6B", IsSystemCategory = true, UserId = null },
+            new() { Name = "Transportation", Icon = "🚗", Color = "#4ECDC4", IsSystemCategory = true, UserId = null },
+            new() { Name = "Housing", Icon = "🏠", Color = "#45B7D1", IsSystemCategory = true, UserId = null },
+            new() { Name = "Utilities", Icon = "💡", Color = "#FFA07A", IsSystemCategory = true, UserId = null },
+            new() { Name = "Entertainment", Icon = "🎬", Color = "#98D8C8", IsSystemCategory = true, UserId = null },
+            new() { Name = "Shopping", Icon = "🛒", Color = "#F7DC6F", IsSystemCategory = true, UserId = null },
+            new() { Name = "Healthcare", Icon = "💊", Color = "#BB8FCE", IsSystemCategory = true, UserId = null },
+            new() { Name = "Education", Icon = "📚", Color = "#85C1E2", IsSystemCategory = true, UserId = null },
+            new() { Name = "Salary", Icon = "💰", Color = "#52C41A", IsSystemCategory = true, UserId = null },
+            new() { Name = "Investment", Icon = "📈", Color = "#1890FF", IsSystemCategory = true, UserId = null },
+            new() { Name = "Gifts", Icon = "🎁", Color = "#EB2F96", IsSystemCategory = true, UserId = null },
+            new() { Name = "Other", Icon = "➕", Color = "#8C8C8C", IsSystemCategory = true, UserId = null }
+        };
+
+        await context.Categories.AddRangeAsync(systemCategories);
+        await context.SaveChangesAsync();
+    }
     private static async Task SeedAdminUserAsync(UserManager<User> userManager, AdminUserOptions admin, ILogger logger,
         IDateTimeProvider dateTimeProvider)
     {
@@ -89,7 +113,8 @@ public static class DbInitializer
 
         await userManager.AddToRoleAsync(user, IdentityRoleConstants.Admin);
         logger.LogInformation("Admin user created successfully.");
-        logger.LogInformation("   Email: {Email}", admin.Email);
-        logger.LogInformation("   FirstName: {FirstName}", admin.FirstName);
-        logger.LogInformation("   LastName: {LastName}", admin.LastName);
-    }}
+        logger.LogInformation("Email: {Email}", admin.Email);
+        logger.LogInformation("FirstName: {FirstName}", admin.FirstName);
+        logger.LogInformation("LastName: {LastName}", admin.LastName);
+    }
+}

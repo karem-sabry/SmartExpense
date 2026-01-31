@@ -7,10 +7,12 @@ namespace SmartExpense.Infrastructure.Services;
 public class CategoryService : ICategoryService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public CategoryService(IUnitOfWork unitOfWork)
+    public CategoryService(IUnitOfWork unitOfWork,IDateTimeProvider dateTimeProvider)
     {
         _unitOfWork = unitOfWork;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     public async Task<List<CategoryReadDto>> GetAllAsync(Guid userId)
@@ -62,7 +64,7 @@ public class CategoryService : ICategoryService
             Color = dto.Color,
             IsSystemCategory = false,
             IsActive = true,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = _dateTimeProvider.UtcNow
         };
 
         await _unitOfWork.Categories.AddAsync(category);
@@ -99,7 +101,7 @@ public class CategoryService : ICategoryService
         category.Icon = dto.Icon;
         category.Color = dto.Color;
         category.IsActive = dto.IsActive;
-        category.UpdatedAtUtc = DateTime.UtcNow;
+        category.UpdatedAtUtc = _dateTimeProvider.UtcNow;
 
         await _unitOfWork.Categories.UpdateAsync(category);
         await _unitOfWork.SaveChangesAsync();
