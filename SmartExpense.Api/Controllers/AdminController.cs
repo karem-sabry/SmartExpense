@@ -38,25 +38,10 @@ public class AdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUserById(Guid userId)
     {
-        if (userId == Guid.Empty)
-        {
-            return BadRequest(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidId
-            });
-        }
-
         var user = await _adminService.GetUserByIdAsync(userId);
-        if (user == null)
-            return NotFound(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.UserNotFound
-            });
-
         return Ok(user);
     }
+
 
     [HttpPost("users/{userId:guid}/make-admin")]
     [ProducesResponseType(typeof(BasicResponse), StatusCodes.Status200OK)]
@@ -66,31 +51,9 @@ public class AdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> MakeUserAdmin(Guid userId)
     {
-        if (userId == Guid.Empty)
-        {
-            return BadRequest(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidId
-            });
-        }
-
-        var currentAdminEmail = User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrWhiteSpace(currentAdminEmail))
-        {
-            return Unauthorized(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidUserContext
-            });
-        }
-
+        var currentAdminEmail = User.FindFirstValue(ClaimTypes.Email)!;
         var response = await _adminService.MakeUserAdminAsync(userId, currentAdminEmail);
-
-        if (response.Succeeded)
-            return Ok(response);
-
-        return BadRequest(response);
+        return Ok(response);
     }
 
     [HttpPost("users/{userId:guid}/remove-admin")]
@@ -101,25 +64,9 @@ public class AdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveAdminRole(Guid userId)
     {
-        if (userId == Guid.Empty)
-            return BadRequest(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidId
-            });
-        var currentAdminIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-
-        if (string.IsNullOrWhiteSpace(currentAdminIdClaim) ||
-            !Guid.TryParse(currentAdminIdClaim, out var currentAdminId))
-            return Unauthorized(new BasicResponse { Succeeded = false, Message = ErrorMessages.InvalidUserContext });
-
+        var currentAdminId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var response = await _adminService.RemoveAdminRoleAsync(userId, currentAdminId);
-
-        if (response.Succeeded)
-            return Ok(response);
-
-        return BadRequest(response);
+        return Ok(response);
     }
 
     [HttpDelete("users/{userId:guid}")]
@@ -130,26 +77,8 @@ public class AdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> DeleteUser(Guid userId)
     {
-        if (userId == Guid.Empty)
-            return BadRequest(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidId
-            });
-
-        var currentAdminEmail = User.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrWhiteSpace(currentAdminEmail))
-            return Unauthorized(new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidUserContext
-            });
-
+        var currentAdminEmail = User.FindFirstValue(ClaimTypes.Email)!;
         var response = await _adminService.DeleteUserAsync(userId, currentAdminEmail);
-
-        if (response.Succeeded)
-            return Ok(response);
-
-        return BadRequest(response);
+        return Ok(response);
     }
 }

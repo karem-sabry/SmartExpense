@@ -1,6 +1,7 @@
 ﻿using SmartExpense.Application.Dtos.Category;
 using SmartExpense.Application.Interfaces;
 using SmartExpense.Core.Entities;
+using SmartExpense.Core.Exceptions;
 
 namespace SmartExpense.Infrastructure.Services;
 
@@ -9,7 +10,7 @@ public class CategoryService : ICategoryService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
 
-    public CategoryService(IUnitOfWork unitOfWork,IDateTimeProvider dateTimeProvider)
+    public CategoryService(IUnitOfWork unitOfWork, IDateTimeProvider dateTimeProvider)
     {
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
@@ -35,7 +36,7 @@ public class CategoryService : ICategoryService
         var category = await _unitOfWork.Categories.GetByIdForUserAsync(id, userId);
 
         if (category == null)
-            throw new InvalidOperationException("Category not found");
+            throw new NotFoundException("Category", id);
 
         return new CategoryReadDto
         {
@@ -50,11 +51,11 @@ public class CategoryService : ICategoryService
 
     public async Task<CategoryReadDto> CreateAsync(CategoryCreateDto dto, Guid userId)
     {
-        // Check if category name already exists for this user
         var exists = await _unitOfWork.Categories.CategoryNameExistsAsync(userId, dto.Name);
 
         if (exists)
-            throw new InvalidOperationException("Category with this name already exists");
+            throw new ConflictException("Category with this name already exists");
+
 
         var category = new Category
         {
@@ -64,7 +65,6 @@ public class CategoryService : ICategoryService
             Color = dto.Color,
             IsSystemCategory = false,
             IsActive = true,
-            CreatedAtUtc = _dateTimeProvider.UtcNow
         };
 
         await _unitOfWork.Categories.AddAsync(category);
@@ -86,22 +86,20 @@ public class CategoryService : ICategoryService
         var category = await _unitOfWork.Categories.GetByIdForUserAsync(id, userId);
 
         if (category == null)
-            throw new InvalidOperationException("Category not found or you don't have permission to update it");
+            throw new NotFoundException("Category", id);
 
         if (category.IsSystemCategory)
-            throw new InvalidOperationException("Cannot update system categories");
+            throw new ForbiddenException("Cannot update system categories");
 
-        // Check if new name already exists for this user (excluding current category)
         var nameExists = await _unitOfWork.Categories.CategoryNameExistsAsync(userId, dto.Name, id);
 
         if (nameExists)
-            throw new InvalidOperationException("Category with this name already exists");
+            throw new ConflictException("Category with this name already exists");
 
         category.Name = dto.Name;
         category.Icon = dto.Icon;
         category.Color = dto.Color;
         category.IsActive = dto.IsActive;
-        category.UpdatedAtUtc = _dateTimeProvider.UtcNow;
 
         await _unitOfWork.Categories.UpdateAsync(category);
         await _unitOfWork.SaveChangesAsync();
@@ -122,10 +120,10 @@ public class CategoryService : ICategoryService
         var category = await _unitOfWork.Categories.GetByIdForUserAsync(id, userId);
 
         if (category == null)
-            throw new InvalidOperationException("Category not found or you don't have permission to delete it");
+            throw new NotFoundException("Category", id);
 
         if (category.IsSystemCategory)
-            throw new InvalidOperationException("Cannot delete system categories");
+            throw new ForbiddenException("Cannot delete system categories");
 
         await _unitOfWork.Categories.DeleteAsync(id);
         await _unitOfWork.SaveChangesAsync();

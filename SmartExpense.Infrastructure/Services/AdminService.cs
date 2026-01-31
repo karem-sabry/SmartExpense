@@ -1,11 +1,14 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Globalization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SmartExpense.Application.Dtos.Auth;
 using SmartExpense.Application.Interfaces;
 using SmartExpense.Core.Constants;
 using SmartExpense.Core.Entities;
+using SmartExpense.Core.Exceptions;
 using SmartExpense.Infrastructure.Data;
+using ValidationException = System.ComponentModel.DataAnnotations.ValidationException;
 
 namespace SmartExpense.Infrastructure.Services;
 
@@ -62,12 +65,13 @@ public class AdminService : IAdminService
 
     public async Task<UserWithRolesDto?> GetUserByIdAsync(Guid userId)
     {
+        ValidateGuid(userId,nameof(userId));
         var user = await _userManager.FindByIdAsync(userId.ToString());
 
         if (user == null)
         {
             _logger.LogWarning("User not found: {UserId}", userId);
-            return null;
+            throw new NotFoundException("User", userId);
         }
 
         var roles = await _userManager.GetRolesAsync(user);
@@ -84,16 +88,14 @@ public class AdminService : IAdminService
 
     public async Task<BasicResponse> MakeUserAdminAsync(Guid userId, string currentAdminEmail)
     {
+        ValidateGuid(userId,nameof(userId));
+        
         var user = await _userManager.FindByIdAsync(userId.ToString());
 
-        if (user == null || user.Id == Guid.Empty)
+        if (user == null)
         {
-            _logger.LogWarning("Attempted to make non-existent user admin: {UserId}", userId);
-            return new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.InvalidId
-            };
+            _logger.LogWarning("User not found: {UserId}", userId);
+            throw new NotFoundException("User", userId);
         }
 
         if (user.Email?.Equals(currentAdminEmail, StringComparison.OrdinalIgnoreCase) == true)
@@ -145,16 +147,12 @@ public class AdminService : IAdminService
 
     public async Task<BasicResponse> RemoveAdminRoleAsync(Guid userId, Guid currentAdminId)
     {
+        ValidateGuid(userId, nameof(userId));
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
-            _logger.LogWarning("Attempted to remove admin role from non-existent user: {UserId}", userId);
-
-            return new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.UserNotFound
-            };
+            _logger.LogWarning("User not found: {UserId}", userId);
+            throw new NotFoundException("User", userId);
         }
 
         if (user.Id == currentAdminId)
@@ -222,15 +220,13 @@ public class AdminService : IAdminService
 
     public async Task<BasicResponse> DeleteUserAsync(Guid userId, string currentAdminEmail)
     {
+        ValidateGuid(userId, nameof(userId));
+        
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {
-            _logger.LogWarning("Attempted to delete non-existent user: {UserId}", userId);
-            return new BasicResponse
-            {
-                Succeeded = false,
-                Message = ErrorMessages.UserNotFound
-            };
+            _logger.LogWarning("User not found: {UserId}", userId);
+            throw new NotFoundException("User", userId);
         }
 
         if (user.Email?.Equals(currentAdminEmail, StringComparison.OrdinalIgnoreCase) == true)
@@ -265,5 +261,13 @@ public class AdminService : IAdminService
             Succeeded = true,
             Message = $"User {user.Email} has been deleted successfully."
         };
+    }
+
+    private void ValidateGuid(Guid userId, string paramName)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ValidationException($"{paramName} cannot be empty");
+        }
     }
 }
