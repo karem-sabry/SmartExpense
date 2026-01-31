@@ -1,40 +1,432 @@
+// using System.Security.Claims;
+// using System.Text;
+// using Asp.Versioning;
+// using Microsoft.AspNetCore.Authentication.JwtBearer;
+// using Microsoft.AspNetCore.Identity;
+// using Microsoft.EntityFrameworkCore;
+// using Microsoft.Extensions.Options;
+// using Microsoft.IdentityModel.Tokens;
+// using Microsoft.OpenApi.Models;
+// using SmartExpense.Application.Interfaces;
+// using SmartExpense.Core.Constants;
+// using SmartExpense.Core.Entities;
+// using SmartExpense.Core.Models;
+// using SmartExpense.Infrastructure.Data;
+// using SmartExpense.Infrastructure.Repositories;
+// using SmartExpense.Infrastructure.Services;
+//
+// var builder = WebApplication.CreateBuilder(args);
+//
+// // Configuration
+// builder.Configuration.AddUserSecrets<Program>();
+//
+// // Add services
+// builder.Services.AddHttpContextAccessor();
+//
+// // DbContext
+// builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+// {
+//     options.UseSqlServer(
+//         builder.Configuration.GetConnectionString("DefaultConnection"),
+//         sqlOptions => sqlOptions.MigrationsAssembly("SmartExpense.Infrastructure")
+//     );
+// });
+//
+// // Controllers with JSON options
+// builder.Services.AddControllers()
+//     .AddJsonOptions(options =>
+//     {
+//         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+//         options.JsonSerializerOptions.DefaultIgnoreCondition =
+//             System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+//     })
+//     .AddNewtonsoftJson();
+//
+// // API Versioning
+// builder.Services.AddApiVersioning(options =>
+// {
+//     options.DefaultApiVersion = new ApiVersion(1, 0);
+//     options.AssumeDefaultVersionWhenUnspecified = true;
+//     options.ReportApiVersions = true;
+//     options.ApiVersionReader = ApiVersionReader.Combine(
+//         new UrlSegmentApiVersionReader(),
+//         new HeaderApiVersionReader("X-Api-Version")
+//     );
+// }).AddApiExplorer(options =>
+// {
+//     options.GroupNameFormat = "'v'VVV";
+//     options.SubstituteApiVersionInUrl = true;
+// });
+//
+// // Identity
+// builder.Services.AddIdentity<User, IdentityRole<Guid>>(opt =>
+// {
+//     // Password requirements
+//     opt.Password.RequireDigit = true;
+//     opt.Password.RequireLowercase = true;
+//     opt.Password.RequireUppercase = true;
+//     opt.Password.RequireNonAlphanumeric = true;
+//     opt.Password.RequiredLength = ApplicationConstants.MinPasswordLength;
+//
+//     // User requirements
+//     opt.User.RequireUniqueEmail = true;
+//
+//     // Lockout settings
+//     opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+//     opt.Lockout.MaxFailedAccessAttempts = 5;
+//     opt.Lockout.AllowedForNewUsers = true;
+//
+//     // Token providers
+//     opt.Tokens.PasswordResetTokenProvider = TokenOptions.DefaultProvider;
+// })
+// .AddEntityFrameworkStores<AppDbContext>()
+// .AddDefaultTokenProviders();
+//
+// // JWT Authentication
+// var jwtOptions = builder.Configuration.GetSection(JwtOptions.JwtOptionsKey).Get<JwtOptions>();
+// if (jwtOptions == null)
+//     throw new InvalidOperationException(
+//         $"JWT configuration is missing. Please configure '{JwtOptions.JwtOptionsKey}' section.");
+// if (string.IsNullOrEmpty(jwtOptions.Secret) || jwtOptions.Secret.Length < 32)
+//     throw new ArgumentException("JWT Secret must be at least 32 characters long.");
+//
+// builder.Services.AddAuthentication(options =>
+// {
+//     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+//     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+// })
+// .AddJwtBearer(options =>
+// {
+//     options.TokenValidationParameters = new TokenValidationParameters
+//     {
+//         ValidateIssuer = true,
+//         ValidateAudience = true,
+//         ValidateLifetime = true,
+//         ValidateIssuerSigningKey = true,
+//         ValidIssuer = jwtOptions.Issuer,
+//         ValidAudience = jwtOptions.Audience,
+//         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+//         RoleClaimType = ClaimTypes.Role,
+//         ClockSkew = TimeSpan.FromMinutes(5)
+//     };
+//
+//     options.Events = new JwtBearerEvents
+//     {
+//         OnAuthenticationFailed = context =>
+//         {
+//             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+//             logger.LogWarning("Authentication failed: {Message}", context.Exception.Message);
+//             return Task.CompletedTask;
+//         },
+//         OnTokenValidated = context =>
+//         {
+//             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+//             logger.LogDebug("Token validated for user: {User}", context.Principal?.Identity?.Name);
+//             return Task.CompletedTask;
+//         },
+//         OnChallenge = context =>
+//         {
+//             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+//             logger.LogWarning("Authentication challenge: {Error} - {ErrorDescription}",
+//                 context.Error, context.ErrorDescription);
+//             return Task.CompletedTask;
+//         }
+//     };
+// });
+//
+// // Authorization policies
+// builder.Services.AddAuthorization(options =>
+// {
+//     options.AddPolicy("AdminOnly", policy => policy.RequireRole(IdentityRoleConstants.Admin));
+//     options.AddPolicy("UserOnly", policy => policy.RequireRole(IdentityRoleConstants.User));
+// });
+//
+// // Configure token lifespan
+// builder.Services.Configure<DataProtectionTokenProviderOptions>(opt =>
+// {
+//     opt.TokenLifespan = TimeSpan.FromHours(ApplicationConstants.PasswordResetTokenExpirationHours);
+// });
+//
+// // DI for services & repositories
+// builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+// builder.Services.AddScoped<IAuthTokenProcessor, AuthTokenProcessorService>();
+// builder.Services.AddScoped<IAccountService, AccountService>();
+// builder.Services.AddScoped<ICategoryService, CategoryService>();
+// builder.Services.AddScoped<IDateTimeProvider, DateTimeProvider>();
+// builder.Services.AddScoped<IUserRepository, UserRepository>();
+//
+// // CORS
+// builder.Services.AddCors(options =>
+// {
+//     options.AddPolicy("DevelopmentPolicy", policy =>
+//     {
+//         policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+//     });
+//     options.AddPolicy("ProductionPolicy", policy =>
+//     {
+//         policy.WithOrigins("https://smartexpenseapi.com")
+//             .AllowAnyMethod().AllowAnyHeader()
+//             .AllowCredentials();
+//     });
+// });
+//
+// // Swagger/OpenAPI
+// builder.Services.AddEndpointsApiExplorer();
+// builder.Services.AddSwaggerGen(c =>
+// {
+//     c.SwaggerDoc("v1", new OpenApiInfo
+//     {
+//         Title = "SmartExpense API",
+//         Version = "v1",
+//         Description = "A Smart Expense Tracking API - Version 1",
+//         Contact = new OpenApiContact
+//         {
+//             Name = "SmartExpense Support",
+//             Email = "support@smartexpense.com"
+//         }
+//     });
+//
+//     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+//     {
+//         Name = "Authorization",
+//         Type = SecuritySchemeType.ApiKey,
+//         Scheme = "Bearer",
+//         BearerFormat = "JWT",
+//         In = ParameterLocation.Header,
+//         Description = "Enter 'Bearer' [space] and then your JWT token."
+//     });
+//
+//     c.AddSecurityRequirement(new OpenApiSecurityRequirement
+//     {
+//         {
+//             new OpenApiSecurityScheme
+//             {
+//                 Reference = new OpenApiReference
+//                 {
+//                     Type = ReferenceType.SecurityScheme,
+//                     Id = "Bearer"
+//                 }
+//             },
+//             Array.Empty<string>()
+//         }
+//     });
+// });
+//
+// var app = builder.Build();
+//
+// using (var scope = app.Services.CreateScope())
+// {
+//     var services = scope.ServiceProvider;
+//     var logger = services.GetRequiredService<ILogger<Program>>();
+//     try
+//     {
+//         logger.LogInformation("Starting database seeding...");
+//
+//         var context = services.GetRequiredService<AppDbContext>();
+//         var userManager = services.GetRequiredService<UserManager<User>>();
+//         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+//         var adminOptions = services.GetRequiredService<IOptions<AdminUserOptions>>();
+//         var dateTimeProvider = services.GetRequiredService<IDateTimeProvider>();
+//         await DbInitializer.SeedDataAsync(context, userManager, roleManager, adminOptions, logger, dateTimeProvider);
+//         logger.LogInformation("Database seeding completed successfully");
+//     }
+//     catch (Exception ex)
+//     {
+//         logger.LogError(ex, "An error occurred while seeding the database.");
+//     }
+// }
+//
+// // Security headers
+// app.Use(async (context, next) =>
+// {
+//     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+//     context.Response.Headers["X-Frame-Options"] = "DENY";
+//     context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+//     context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+//     context.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
+//     await next();
+// });
+//
+// // Middleware
+// if (app.Environment.IsDevelopment())
+// {
+//     app.UseSwagger();
+//     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SmartExpense API v1"));
+//     app.UseCors("DevelopmentPolicy");
+//     app.UseDeveloperExceptionPage();
+// }
+// else
+// {
+//     app.UseCors("ProductionPolicy");
+//     app.UseHsts();
+// }
+//
+// app.UseHttpsRedirection();
+// app.UseAuthentication();
+// app.UseAuthorization();
+// app.MapControllers();
+//
+// app.Run();
+
+using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using System.Threading.RateLimiting;
+using Asp.Versioning;
+using SmartExpense.Application.Interfaces;
+using SmartExpense.Core.Constants;
 using SmartExpense.Core.Entities;
 using SmartExpense.Core.Models;
 using SmartExpense.Infrastructure.Data;
+using SmartExpense.Infrastructure.Repositories;
+using SmartExpense.Infrastructure.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using SmartExpense.Application.Dtos.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// ====================================
+// CONFIGURATION
+// ====================================
+builder.Configuration.AddUserSecrets<Program>();
 
-builder.Services.AddIdentity<User, IdentityRole<Guid>>(options =>
+// ====================================
+// DATABASE
+// ====================================
+
+builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
     {
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireNonAlphanumeric = true;
-        options.Password.RequiredLength = 8;
-        options.User.RequireUniqueEmail = true;
+        var dateTimeProvider = serviceProvider.GetRequiredService<IDateTimeProvider>();
+        var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+
+        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+            sqlOptions => sqlOptions.MigrationsAssembly("SmartExpense.Infrastructure"));
+    }
+);
+
+// ====================================
+// HTTP CONTEXT & CONTROLLERS
+// ====================================
+
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.DefaultIgnoreCondition =
+        System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+}).AddNewtonsoftJson();
+builder.Services.AddRateLimiter(options =>
+{
+    // Global rate limit
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.Identity?.Name ?? context.Request.Headers.Host.ToString(),
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 100,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+
+    // Strict rate limit for auth endpoints
+    options.AddFixedWindowLimiter("auth", options =>
+    {
+        options.PermitLimit = 5;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueLimit = 0;
+    });
+
+    // Moderate rate limit for public endpoints
+    options.AddFixedWindowLimiter("api", options =>
+    {
+        options.PermitLimit = 50;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueLimit = 0;
+    });
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.StatusCode = 429;
+        await context.HttpContext.Response.WriteAsJsonAsync(new BasicResponse
+        {
+            Succeeded = false,
+            Message = "Too many requests. Please try again later."
+        }, cancellationToken: token);
+    };
+});
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = ApiVersionReader.Combine(new UrlSegmentApiVersionReader(),
+        new HeaderApiVersionReader("X-Api-Version")
+    );
+}).AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+// ====================================
+// IDENTITY CONFIGURATION
+// ====================================
+
+builder.Services.AddIdentity<User, IdentityRole<Guid>>(opt =>
+    {
+        //Password requirements
+        opt.Password.RequireDigit = true;
+        opt.Password.RequireLowercase = true;
+        opt.Password.RequireUppercase = true;
+        opt.Password.RequireNonAlphanumeric = true;
+        opt.Password.RequiredLength = ApplicationConstants.MinPasswordLength;
+
+        //User requirements
+        opt.User.RequireUniqueEmail = true;
+
+        //Lockout settings
+        opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        opt.Lockout.MaxFailedAccessAttempts = 5;
+        opt.Lockout.AllowedForNewUsers = true;
+
+        //Token providers
+        opt.Tokens.PasswordResetTokenProvider = TokenOptions.DefaultProvider;
     }).AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOptions"));
-
-var jwtOptions = builder.Configuration.GetSection("JwtOptions").Get<JwtOptions>()!;
-
-builder.Services.AddAuthentication(options =>
+// Configure password reset token lifespan
+builder.Services.Configure<DataProtectionTokenProviderOptions>(opt =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
+    opt.TokenLifespan = TimeSpan.FromHours(ApplicationConstants.PasswordResetTokenExpirationHours);
+});
+
+// ====================================
+// JWT AUTHENTICATION
+// ====================================
+
+builder.Services.AddAuthentication(opt =>
 {
+    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(options =>
+{
+    var jwtOptions = builder.Configuration.GetSection(JwtOptions.JwtOptionsKey).Get<JwtOptions>();
+
+    if (jwtOptions == null)
+        throw new InvalidOperationException(
+            $"JWT configuration is missing. Please configure '{JwtOptions.JwtOptionsKey}' section.");
+
+    if (string.IsNullOrEmpty(jwtOptions.Secret) || jwtOptions.Secret.Length < 32)
+    {
+        throw new ArgumentException("JWT Secret must be at least 32 characters long.");
+    }
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -43,26 +435,82 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtOptions.Issuer,
         ValidAudience = jwtOptions.Audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+        RoleClaimType = ClaimTypes.Role,
+        ClockSkew = TimeSpan.FromMinutes(5)
+    };
+
+    //Jwt events
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("Authentication failed: {Message}", context.Exception.Message);
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            var userEmail = context.Principal?.Identity?.Name;
+            logger.LogDebug("Token validated for user: {User}", userEmail);
+
+            return Task.CompletedTask;
+        },
+        OnChallenge = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("Authentication challenge: {Error} - {ErrorDescription}",
+                context.Error, context.ErrorDescription);
+            return Task.CompletedTask;
+        }
     };
 });
-builder.Services.AddControllers();
+
+// ====================================
+// AUTHORIZATION POLICIES
+// ====================================
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole(IdentityRoleConstants.Admin));
+    options.AddPolicy("UserOnly", policy => policy.RequireRole(IdentityRoleConstants.User));
+});
+
+// ====================================
+// SWAGGER / OPENAPI
+// ====================================
+
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen(c =>
+
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "SmartExpense API", Version = "v1" });
-    
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    // API Info
+    options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
+        Title = "SmartExpense API",
+        Version = "v1",
+        Description = "A Smart Expense Tracker and analyzer - Version 1",
+        Contact = new OpenApiContact
+        {
+            Name = "SmartExpense Support",
+            Email = "support@smartexpense.com"
+        }
     });
 
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    // JWT Authentication
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter 'Bearer' [space] and then your JWT token."
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
@@ -78,25 +526,136 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// ====================================
+// OPTIONS PATTERN CONFIGURATION
+// ====================================
+
+builder.Services.Configure<JwtOptions>(
+    builder.Configuration.GetSection(JwtOptions.JwtOptionsKey));
+
+builder.Services.Configure<AdminUserOptions>(
+    builder.Configuration.GetSection("AdminUser"));
+
+builder.Services.Configure<EmailOptions>(
+    builder.Configuration.GetSection("EmailOptions"));
+
+// ====================================
+// DEPENDENCY INJECTION
+// ====================================
+
+
+// Unit of Work
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Services
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+// Repositories
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+
+// Token Processing
+builder.Services.AddScoped<IAuthTokenProcessor, AuthTokenProcessorService>();
+
+// ====================================
+// CORS CONFIGURATION
+// ====================================
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevelopmentPolicy", policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+
+    options.AddPolicy("ProductionPolicy", policy =>
+    {
+        policy.WithOrigins("https://smartexpense.com")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+});
+
+// ====================================
+// BUILD APPLICATION
+// ====================================
+
 var app = builder.Build();
 
-//Seed Database
+// ====================================
+// DATABASE SEEDING
+// ====================================
+
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DbInitializer.SeedAsync(context);
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        logger.LogInformation("Starting database seeding...");
+
+        var context = services.GetRequiredService<AppDbContext>();
+        var userManager = services.GetRequiredService<UserManager<User>>();
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        var adminOptions = services.GetRequiredService<IOptions<AdminUserOptions>>();
+        var dateTimeProvider = services.GetRequiredService<IDateTimeProvider>();
+        await DbInitializer.SeedDataAsync(context, userManager, roleManager, adminOptions, logger, dateTimeProvider);
+        logger.LogInformation("Database seeding completed successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
 }
 
+// ====================================
+// MIDDLEWARE PIPELINE
+// ====================================
 
+// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "SmartExpense API v1");
+        options.RoutePrefix = string.Empty;
+    });
+    app.UseCors("DevelopmentPolicy");
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseCors("ProductionPolicy");
+    app.UseHsts();
 }
 
+app.UseExceptionHandler(opt => { });
+
+//Security Headers middleware
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
+
+    await next();
+});
+
 app.UseHttpsRedirection();
+app.UseRateLimiter();
+app.UseResponseCaching();
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
+
 
 app.Run();

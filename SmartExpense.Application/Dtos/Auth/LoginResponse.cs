@@ -1,9 +1,8 @@
 ﻿namespace SmartExpense.Application.Dtos.Auth;
 
-public class LoginResponse
+public record LoginResponse : BasicResponse
 {
-    public string Token { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
-    public DateTime ExpiresAt { get; set; }
-    public UserProfileDto User { get; set; } = null!;
+    public string? AccessToken { get; init; }
+    public DateTime? ExpiresAtUtc { get; init; }
+    public string? RefreshToken { get; init; }
 }

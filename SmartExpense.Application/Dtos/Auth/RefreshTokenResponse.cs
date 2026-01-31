@@ -1,8 +1,8 @@
 ﻿namespace SmartExpense.Application.Dtos.Auth;
 
-public class RefreshTokenResponse
+public record RefreshTokenResponse : BasicResponse
 {
-    public string Token { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
-    public DateTime ExpiresAt { get; set; }
+    public string? AccessToken { get; init; }
+    public DateTime? ExpiresAtUtc { get; init; }
+    public string? RefreshToken { get; init; }
 }

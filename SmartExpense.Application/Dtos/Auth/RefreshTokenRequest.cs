@@ -1,3 +1,9 @@
-﻿namespace SmartExpense.Application.Dtos.Auth;
+﻿using System.ComponentModel.DataAnnotations;
 
-public record RefreshTokenRequest(string RefreshToken);
+namespace SmartExpense.Application.Dtos.Auth;
+
+public record RefreshTokenRequest
+{
+    [Required(ErrorMessage = "Refresh token is required")]
+    public string? RefreshToken { get; init; }
+}

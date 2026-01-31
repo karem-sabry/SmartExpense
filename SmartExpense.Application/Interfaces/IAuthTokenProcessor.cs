@@ -4,6 +4,6 @@ namespace SmartExpense.Application.Interfaces;
 
 public interface IAuthTokenProcessor
 {
-    string GenerateJwtToken(User user);
-    string GenerateRefreshToken();
+    public (string jwtToken, DateTime expiresAtUtc) GenerateJwtToken(User user, IList<string> roles);
+    public string GenerateRefreshToken();
 }

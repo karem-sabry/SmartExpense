@@ -1,0 +1,269 @@
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using SmartExpense.Application.Dtos.Auth;
+using SmartExpense.Application.Interfaces;
+using SmartExpense.Core.Constants;
+using SmartExpense.Core.Entities;
+using SmartExpense.Infrastructure.Data;
+
+namespace SmartExpense.Infrastructure.Services;
+
+public class AdminService : IAdminService
+{
+    private readonly UserManager<User> _userManager;
+    private readonly ILogger<AdminService> _logger;
+    private readonly RoleManager<IdentityRole<Guid>> _roleManager;
+    private readonly AppDbContext _context;
+
+    public AdminService(UserManager<User> userManager, ILogger<AdminService> logger,
+        RoleManager<IdentityRole<Guid>> roleManager, AppDbContext context)
+    {
+        _userManager = userManager;
+        _logger = logger;
+        _roleManager = roleManager;
+        _context = context;
+    }
+
+    public async Task<IEnumerable<UserWithRolesDto>> GetAllUsersAsync()
+    {
+        var users = await _userManager.Users.ToListAsync();
+
+        if (!users.Any())
+        {
+            return Enumerable.Empty<UserWithRolesDto>();
+        }
+
+        var userIds = users.Select(u => u.Id).ToList();
+        ;
+
+        var userRoles = await _context.UserRoles.Where(ur => userIds.Contains(ur.UserId))
+            .Join(_context.Roles,
+                ur => ur.RoleId,
+                r => r.Id,
+                (ur, r) => new { ur.UserId, r.Name }
+            ).ToListAsync();
+
+        var rolesByUser = userRoles
+            .GroupBy(ur => ur.UserId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Name).ToList());
+
+        var usersWithRoles = users.Select(user => new UserWithRolesDto
+        {
+            Id = user.Id,
+            Email = user.Email ?? string.Empty,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Roles = rolesByUser.TryGetValue(user.Id, out var roles) ? roles! : new List<string>()
+        }).ToList();
+
+        return usersWithRoles;
+    }
+
+    public async Task<UserWithRolesDto?> GetUserByIdAsync(Guid userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+
+        if (user == null)
+        {
+            _logger.LogWarning("User not found: {UserId}", userId);
+            return null;
+        }
+
+        var roles = await _userManager.GetRolesAsync(user);
+
+        return new UserWithRolesDto
+        {
+            Id = user.Id,
+            Email = user.Email ?? string.Empty,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Roles = roles.ToList()
+        };
+    }
+
+    public async Task<BasicResponse> MakeUserAdminAsync(Guid userId, string currentAdminEmail)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+
+        if (user == null || user.Id == Guid.Empty)
+        {
+            _logger.LogWarning("Attempted to make non-existent user admin: {UserId}", userId);
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.InvalidId
+            };
+        }
+
+        if (user.Email?.Equals(currentAdminEmail, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            _logger.LogWarning("Admin {Email} attempted to modify own role", currentAdminEmail);
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.CannotModifyOwnAccount
+            };
+        }
+
+        if (await _userManager.IsInRoleAsync(user, IdentityRoleConstants.Admin))
+        {
+            _logger.LogInformation("User {Email} is already an admin", user.Email);
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.UserAlreadyAdmin
+            };
+        }
+
+        var result = await _userManager.AddToRoleAsync(user, IdentityRoleConstants.Admin);
+
+        if (!result.Succeeded)
+        {
+            _logger.LogError("Failed to grant admin role to {Email}: {Errors}",
+                user.Email,
+                string.Join(", ", result.Errors.Select(e => e.Description)));
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = string.Join(", ", result.Errors.Select(e => e.Description))
+            };
+        }
+
+        _logger.LogInformation("Admin role granted to user {Email} by {AdminEmail}",
+            user.Email, currentAdminEmail);
+
+        return new BasicResponse
+        {
+            Succeeded = true,
+            Message = $"{SuccessMessages.AdminRoleGranted} User: {user.Email}"
+        };
+    }
+
+    public async Task<BasicResponse> RemoveAdminRoleAsync(Guid userId, Guid currentAdminId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            _logger.LogWarning("Attempted to remove admin role from non-existent user: {UserId}", userId);
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.UserNotFound
+            };
+        }
+
+        if (user.Id == currentAdminId)
+        {
+            _logger.LogWarning("Admin {UserId} attempted to remove own admin role", currentAdminId);
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.CannotModifyOwnAccount
+            };
+        }
+
+        if (!await _userManager.IsInRoleAsync(user, IdentityRoleConstants.Admin))
+        {
+            _logger.LogInformation("User {Email} is not an admin", user.Email);
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.UserNotAdmin
+            };
+        }
+
+        var result = await _userManager.RemoveFromRoleAsync(user, IdentityRoleConstants.Admin);
+
+        if (!result.Succeeded)
+        {
+            _logger.LogError("Failed to remove admin role from {Email}: {Errors}",
+                user.Email,
+                string.Join(", ", result.Errors.Select(e => e.Description)));
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = string.Join(", ", result.Errors.Select(e => e.Description))
+            };
+        }
+
+        if (!await _userManager.IsInRoleAsync(user, IdentityRoleConstants.User))
+        {
+            var addResult = await _userManager.AddToRoleAsync(user, IdentityRoleConstants.User);
+            if (!addResult.Succeeded)
+            {
+                _logger.LogError("Failed to add User role to {Email}: {Errors}",
+                    user.Email,
+                    string.Join(", ", addResult.Errors.Select(e => e.Description)));
+
+                return new BasicResponse
+                {
+                    Succeeded = false,
+                    Message = string.Join(", ", addResult.Errors.Select(e => e.Description))
+                };
+            }
+        }
+
+        _logger.LogInformation("Admin role removed from user {Email}", user.Email);
+
+        return new BasicResponse
+        {
+            Succeeded = true,
+            Message = $"{SuccessMessages.AdminRoleRemoved} User: {user.Email}"
+        };
+    }
+
+    public async Task<BasicResponse> DeleteUserAsync(Guid userId, string currentAdminEmail)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            _logger.LogWarning("Attempted to delete non-existent user: {UserId}", userId);
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.UserNotFound
+            };
+        }
+
+        if (user.Email?.Equals(currentAdminEmail, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            _logger.LogWarning("Admin {Email} attempted to delete own account", currentAdminEmail);
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = ErrorMessages.CannotModifyOwnAccount
+            };
+        }
+
+        var result = await _userManager.DeleteAsync(user);
+
+        if (!result.Succeeded)
+        {
+            _logger.LogError("Failed to delete user {Email}: {Errors}",
+                user.Email,
+                string.Join(", ", result.Errors.Select(e => e.Description)));
+
+            return new BasicResponse
+            {
+                Succeeded = false,
+                Message = string.Join(", ", result.Errors.Select(e => e.Description))
+            };
+        }
+
+        _logger.LogInformation("User {Email} deleted by admin", user.Email);
+
+        return new BasicResponse
+        {
+            Succeeded = true,
+            Message = $"User {user.Email} has been deleted successfully."
+        };
+    }
+}

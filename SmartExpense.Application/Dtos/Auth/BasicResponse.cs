@@ -1,3 +1,7 @@
 ﻿namespace SmartExpense.Application.Dtos.Auth;
 
-public record BasicResponse(bool Success, string Message);
+public record BasicResponse
+{
+    public bool Succeeded { get; init; }
+    public string Message { get; init; }
+}
