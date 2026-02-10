@@ -1,0 +1,572 @@
+﻿using FluentAssertions;
+using Moq;
+using SmartExpense.Application.Dtos.Transaction;
+using SmartExpense.Application.Interfaces;
+using SmartExpense.Core.Entities;
+using SmartExpense.Core.Enums;
+using SmartExpense.Core.Exceptions;
+using SmartExpense.Core.Models;
+using SmartExpense.Infrastructure.Services;
+
+namespace SmartExpense.Tests.Services;
+
+public class TransactionServiceTests
+{
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
+    private readonly Mock<IDateTimeProvider> _dateTimeProviderMock;
+    private readonly Mock<ITransactionRepository> _transactionRepositoryMock;
+    private readonly Mock<ICategoryRepository> _categoryRepositoryMock;
+    private readonly TransactionService _sut;
+    private readonly Guid _userId;
+    private readonly DateTime _now;
+
+    public TransactionServiceTests()
+    {
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
+        _dateTimeProviderMock = new Mock<IDateTimeProvider>();
+        _transactionRepositoryMock = new Mock<ITransactionRepository>();
+        _categoryRepositoryMock = new Mock<ICategoryRepository>();
+
+        _userId = Guid.NewGuid();
+        _now = new DateTime(2025, 1, 31, 12, 0, 0, DateTimeKind.Utc);
+
+        _dateTimeProviderMock.Setup(x => x.UtcNow).Returns(_now);
+        _unitOfWorkMock.Setup(x => x.Transactions).Returns(_transactionRepositoryMock.Object);
+        _unitOfWorkMock.Setup(x => x.Categories).Returns(_categoryRepositoryMock.Object);
+
+        _sut = new TransactionService(_unitOfWorkMock.Object, _dateTimeProviderMock.Object);
+    }
+
+    #region GetPagedAsync Tests
+
+    [Fact]
+    public async Task GetPagedAsync_ShouldReturnPagedTransactions()
+    {
+        // Arrange
+        var parameters = new TransactionQueryParameters
+        {
+            PageNumber = 1,
+            PageSize = 10
+        };
+
+        var category = new Category { Id = 1, Name = "Food", Icon = "🍔", Color = "#FF0000" };
+        var transactions = new List<Transaction>
+        {
+            new()
+            {
+                Id = 1,
+                UserId = _userId,
+                CategoryId = 1,
+                Description = "Lunch",
+                Amount = 25.50m,
+                TransactionType = TransactionType.Expense,
+                TransactionDate = _now,
+                Category = category
+            }
+        };
+
+        var pagedResult = new PagedResult<Transaction>
+        {
+            Data = transactions,
+            PageNumber = 1,
+            PageSize = 10,
+            TotalCount = 1
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetPagedAsync(_userId, parameters))
+            .ReturnsAsync(pagedResult);
+
+        // Act
+        var result = await _sut.GetPagedAsync(_userId, parameters);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Data.Should().HaveCount(1);
+        result.PageNumber.Should().Be(1);
+        result.TotalCount.Should().Be(1);
+        result.Data.First().Description.Should().Be("Lunch");
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_ShouldReturnEmptyList_WhenNoTransactions()
+    {
+        // Arrange
+        var parameters = new TransactionQueryParameters();
+
+        var pagedResult = new PagedResult<Transaction>
+        {
+            Data = new List<Transaction>(),
+            PageNumber = 1,
+            PageSize = 10,
+            TotalCount = 0
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetPagedAsync(_userId, parameters))
+            .ReturnsAsync(pagedResult);
+
+        // Act
+        var result = await _sut.GetPagedAsync(_userId, parameters);
+
+        // Assert
+        result.Data.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+    }
+
+    #endregion
+
+    #region GetByIdAsync Tests
+
+    [Fact]
+    public async Task GetByIdAsync_ShouldReturnTransaction_WhenExists()
+    {
+        // Arrange
+        var category = new Category { Id = 1, Name = "Food", Icon = "🍔" };
+        var transaction = new Transaction
+        {
+            Id = 1,
+            UserId = _userId,
+            CategoryId = 1,
+            Description = "Lunch",
+            Amount = 25.50m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now,
+            Category = category
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(transaction);
+
+        // Act
+        var result = await _sut.GetByIdAsync(1, _userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().Be(1);
+        result.Description.Should().Be("Lunch");
+        result.Amount.Should().Be(25.50m);
+        result.CategoryName.Should().Be("Food");
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ShouldThrowNotFoundException_WhenTransactionDoesNotExist()
+    {
+        // Arrange
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(999, _userId))
+            .ReturnsAsync((Transaction?)null);
+
+        // Act
+        Func<Task> act = async () => await _sut.GetByIdAsync(999, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage("Transaction with identifier '999' was not found.");
+    }
+
+    #endregion
+
+    #region GetRecentAsync Tests
+
+    [Fact]
+    public async Task GetRecentAsync_ShouldReturnRecentTransactions()
+    {
+        // Arrange
+        var category = new Category { Id = 1, Name = "Food" };
+        var transactions = new List<Transaction>
+        {
+            new() { Id = 1, UserId = _userId, Description = "Lunch", Category = category, TransactionDate = _now },
+            new() { Id = 2, UserId = _userId, Description = "Dinner", Category = category, TransactionDate = _now.AddDays(-1) }
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetRecentAsync(_userId, 10))
+            .ReturnsAsync(transactions);
+
+        // Act
+        var result = await _sut.GetRecentAsync(_userId, 10);
+
+        // Assert
+        result.Should().HaveCount(2);
+        result.First().Description.Should().Be("Lunch");
+    }
+
+    #endregion
+
+    #region GetSummaryAsync Tests
+
+    [Fact]
+    public async Task GetSummaryAsync_ShouldReturnCorrectSummary()
+    {
+        // Arrange
+        var startDate = new DateTime(2025, 1, 1);
+        var endDate = new DateTime(2025, 1, 31);
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetTotalIncomeAsync(_userId, startDate, endDate))
+            .ReturnsAsync(5000m);
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetTotalExpenseAsync(_userId, startDate, endDate))
+            .ReturnsAsync(2500m);
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetTransactionCountAsync(_userId, startDate, endDate))
+            .ReturnsAsync(25);
+
+        // Act
+        var result = await _sut.GetSummaryAsync(_userId, startDate, endDate);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.TotalIncome.Should().Be(5000m);
+        result.TotalExpense.Should().Be(2500m);
+        result.NetBalance.Should().Be(2500m);
+        result.TransactionCount.Should().Be(25);
+        result.StartDate.Should().Be(startDate);
+        result.EndDate.Should().Be(endDate);
+    }
+
+    #endregion
+
+    #region CreateAsync Tests
+
+    [Fact]
+    public async Task CreateAsync_ShouldCreateTransaction_WhenValid()
+    {
+        // Arrange
+        var category = new Category
+        {
+            Id = 1,
+            Name = "Food",
+            Icon = "🍔",
+            IsActive = true,
+            UserId = _userId
+        };
+
+        var dto = new TransactionCreateDto
+        {
+            CategoryId = 1,
+            Description = "Lunch",
+            Amount = 25.50m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now.AddHours(-1),
+            Notes = "Team lunch"
+        };
+
+        _categoryRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(category);
+
+        _transactionRepositoryMock
+            .Setup(x => x.AddAsync(It.IsAny<Transaction>()))
+            .ReturnsAsync((Transaction t) => t);
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(It.IsAny<int>(), _userId))
+            .ReturnsAsync((int id, Guid userId) => new Transaction
+            {
+                Id = 1,
+                UserId = userId,
+                CategoryId = dto.CategoryId,
+                Description = dto.Description,
+                Amount = dto.Amount,
+                TransactionType = dto.TransactionType,
+                TransactionDate = dto.TransactionDate,
+                Notes = dto.Notes,
+                Category = category
+            });
+
+        // Act
+        var result = await _sut.CreateAsync(dto, _userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Description.Should().Be("Lunch");
+        result.Amount.Should().Be(25.50m);
+        result.CategoryName.Should().Be("Food");
+
+        _transactionRepositoryMock.Verify(x => x.AddAsync(It.Is<Transaction>(t =>
+            t.UserId == _userId &&
+            t.CategoryId == dto.CategoryId &&
+            t.Description == dto.Description &&
+            t.Amount == dto.Amount
+        )), Times.Once);
+
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldThrowNotFoundException_WhenCategoryDoesNotExist()
+    {
+        // Arrange
+        var dto = new TransactionCreateDto
+        {
+            CategoryId = 999,
+            Description = "Lunch",
+            Amount = 25.50m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now
+        };
+
+        _categoryRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(999, _userId))
+            .ReturnsAsync((Category?)null);
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateAsync(dto, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>()
+            .WithMessage("Category with identifier '999' was not found.");
+
+        _transactionRepositoryMock.Verify(x => x.AddAsync(It.IsAny<Transaction>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldThrowValidationException_WhenCategoryIsInactive()
+    {
+        // Arrange
+        var category = new Category
+        {
+            Id = 1,
+            Name = "Food",
+            IsActive = false,
+            UserId = _userId
+        };
+
+        var dto = new TransactionCreateDto
+        {
+            CategoryId = 1,
+            Description = "Lunch",
+            Amount = 25.50m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now
+        };
+
+        _categoryRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(category);
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateAsync(dto, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Cannot create transaction with inactive category");
+
+        _transactionRepositoryMock.Verify(x => x.AddAsync(It.IsAny<Transaction>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldThrowValidationException_WhenTransactionDateIsInFuture()
+    {
+        // Arrange
+        var category = new Category
+        {
+            Id = 1,
+            Name = "Food",
+            IsActive = true,
+            UserId = _userId
+        };
+
+        var dto = new TransactionCreateDto
+        {
+            CategoryId = 1,
+            Description = "Lunch",
+            Amount = 25.50m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now.AddDays(1) // Future date
+        };
+
+        _categoryRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(category);
+
+        // Act
+        Func<Task> act = async () => await _sut.CreateAsync(dto, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Transaction date cannot be in the future");
+
+        _transactionRepositoryMock.Verify(x => x.AddAsync(It.IsAny<Transaction>()), Times.Never);
+    }
+
+    #endregion
+
+    #region UpdateAsync Tests
+
+    [Fact]
+    public async Task UpdateAsync_ShouldUpdateTransaction_WhenValid()
+    {
+        // Arrange
+        var category = new Category
+        {
+            Id = 1,
+            Name = "Food",
+            IsActive = true,
+            UserId = _userId
+        };
+
+        var existingTransaction = new Transaction
+        {
+            Id = 1,
+            UserId = _userId,
+            CategoryId = 1,
+            Description = "Old Description",
+            Amount = 20m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now.AddDays(-1),
+            Category = category
+        };
+
+        var dto = new TransactionUpdateDto
+        {
+            CategoryId = 1,
+            Description = "Updated Description",
+            Amount = 30m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now.AddHours(-1)
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(existingTransaction);
+
+        _categoryRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(category);
+
+        // Act
+        var result = await _sut.UpdateAsync(1, dto, _userId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Description.Should().Be("Updated Description");
+        result.Amount.Should().Be(30m);
+
+        _transactionRepositoryMock.Verify(x => x.UpdateAsync(It.Is<Transaction>(t =>
+            t.Id == 1 &&
+            t.Description == dto.Description &&
+            t.Amount == dto.Amount
+        )), Times.Once);
+
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldThrowNotFoundException_WhenTransactionDoesNotExist()
+    {
+        // Arrange
+        var dto = new TransactionUpdateDto
+        {
+            CategoryId = 1,
+            Description = "Updated",
+            Amount = 30m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(999, _userId))
+            .ReturnsAsync((Transaction?)null);
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateAsync(999, dto, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldThrowValidationException_WhenNewCategoryIsInactive()
+    {
+        // Arrange
+        var oldCategory = new Category { Id = 1, Name = "Food", IsActive = true, UserId = _userId };
+        var newCategory = new Category { Id = 2, Name = "Transport", IsActive = false, UserId = _userId };
+
+        var existingTransaction = new Transaction
+        {
+            Id = 1,
+            UserId = _userId,
+            CategoryId = 1,
+            Description = "Old",
+            Category = oldCategory
+        };
+
+        var dto = new TransactionUpdateDto
+        {
+            CategoryId = 2,
+            Description = "Updated",
+            Amount = 30m,
+            TransactionType = TransactionType.Expense,
+            TransactionDate = _now
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(existingTransaction);
+
+        _categoryRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(2, _userId))
+            .ReturnsAsync(newCategory);
+
+        // Act
+        Func<Task> act = async () => await _sut.UpdateAsync(1, dto, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Cannot update transaction with inactive category");
+    }
+
+    #endregion
+
+    #region DeleteAsync Tests
+
+    [Fact]
+    public async Task DeleteAsync_ShouldDeleteTransaction_WhenExists()
+    {
+        // Arrange
+        var category = new Category { Id = 1, Name = "Food" };
+        var transaction = new Transaction
+        {
+            Id = 1,
+            UserId = _userId,
+            Description = "Lunch",
+            Category = category
+        };
+
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(1, _userId))
+            .ReturnsAsync(transaction);
+
+        // Act
+        await _sut.DeleteAsync(1, _userId);
+
+        // Assert
+        _transactionRepositoryMock.Verify(x => x.DeleteAsync(1), Times.Once);
+        _unitOfWorkMock.Verify(x => x.SaveChangesAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ShouldThrowNotFoundException_WhenTransactionDoesNotExist()
+    {
+        // Arrange
+        _transactionRepositoryMock
+            .Setup(x => x.GetByIdForUserAsync(999, _userId))
+            .ReturnsAsync((Transaction?)null);
+
+        // Act
+        Func<Task> act = async () => await _sut.DeleteAsync(999, _userId);
+
+        // Assert
+        await act.Should().ThrowAsync<NotFoundException>();
+        _transactionRepositoryMock.Verify(x => x.DeleteAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    #endregion
+}
