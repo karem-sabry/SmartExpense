@@ -202,7 +202,7 @@ public class BudgetRepositoryTests : IDisposable
         var result = await _sut.BudgetExistsAsync(_userId, _category.Id, 2, 2025, budget.Id);
 
         // Assert
-        result.Should().BeFalse(); 
+        result.Should().BeFalse();
     }
 
     public void Dispose()

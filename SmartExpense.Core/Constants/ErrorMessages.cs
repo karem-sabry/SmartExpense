@@ -28,5 +28,4 @@ public static class ErrorMessages
     public const string InvalidId = "Invalid ID provided.";
     public const string OperationFailed = "The operation failed. Please try again.";
     public const string InternalServerError = "An unexpected error occurred. Please try again later.";
-    
 }

@@ -3,7 +3,7 @@ using SmartExpense.Core.Interfaces;
 
 namespace SmartExpense.Core.Entities;
 
-public class Transaction : IAuditable, IEntity, IUserOwnedEntity
+public class RecurringTransaction : IAuditable, IEntity, IUserOwnedEntity
 {
     public int Id { get; set; }
     public Guid UserId { get; set; }
@@ -11,7 +11,13 @@ public class Transaction : IAuditable, IEntity, IUserOwnedEntity
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public TransactionType TransactionType { get; set; }
-    public DateTime TransactionDate { get; set; }
+    public RecurrenceFrequency Frequency { get; set; }
+
+    public DateTime StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public DateTime? LastGeneratedDate { get; set; }
+
+    public bool IsActive { get; set; } = true;
     public string? Notes { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }

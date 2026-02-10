@@ -10,7 +10,7 @@ using SmartExpense.Core.Models;
 
 namespace SmartExpense.Infrastructure.Services;
 
-public class AuthTokenProcessorService: IAuthTokenProcessor
+public class AuthTokenProcessorService : IAuthTokenProcessor
 {
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly JwtOptions _jwtOptions;

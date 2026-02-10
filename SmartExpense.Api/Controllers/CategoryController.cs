@@ -20,6 +20,7 @@ public class CategoryController : ControllerBase
     {
         _categoryService = categoryService;
     }
+
     [HttpGet]
     [ProducesResponseType(typeof(List<CategoryReadDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -29,7 +30,7 @@ public class CategoryController : ControllerBase
         var categories = await _categoryService.GetAllAsync(userId);
         return Ok(categories);
     }
-    
+
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(CategoryReadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -40,7 +41,7 @@ public class CategoryController : ControllerBase
         var category = await _categoryService.GetByIdAsync(id, userId);
         return Ok(category);
     }
-    
+
     [HttpPost]
     [ProducesResponseType(typeof(CategoryReadDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -52,7 +53,7 @@ public class CategoryController : ControllerBase
         var category = await _categoryService.CreateAsync(dto, userId);
         return CreatedAtAction(nameof(GetById), new { id = category.Id }, category);
     }
-    
+
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(CategoryReadDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -66,7 +67,7 @@ public class CategoryController : ControllerBase
         var category = await _categoryService.UpdateAsync(id, dto, userId);
         return Ok(category);
     }
-    
+
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

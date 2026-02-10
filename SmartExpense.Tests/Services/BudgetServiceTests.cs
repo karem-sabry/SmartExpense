@@ -297,7 +297,7 @@ public class BudgetServiceTests
         {
             CategoryId = 1,
             Amount = 500m,
-            Month = 3,  // Future month
+            Month = 3, // Future month
             Year = 2025
         };
 
@@ -419,7 +419,7 @@ public class BudgetServiceTests
         {
             CategoryId = 1,
             Amount = 500m,
-            Month = 1,  // January (past month, current is February)
+            Month = 1, // January (past month, current is February)
             Year = 2025
         };
 

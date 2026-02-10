@@ -14,6 +14,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<RecurringTransaction> RecurringTransactions => Set<RecurringTransaction>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -35,7 +36,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
             entity.Property(c => c.Color).HasMaxLength(7);
             entity.Property(c => c.CreatedBy).HasMaxLength(100);
             entity.Property(c => c.UpdatedBy).HasMaxLength(100);
-            
+
 
             entity.HasOne(c => c.User)
                 .WithMany(u => u.Categories)
@@ -72,7 +73,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
             entity.Property(b => b.Amount).HasPrecision(18, 2).IsRequired();
             entity.Property(b => b.CreatedBy).HasMaxLength(100);
             entity.Property(b => b.UpdatedBy).HasMaxLength(100);
-            
+
 
             entity.HasOne(b => b.User)
                 .WithMany()
@@ -82,6 +83,27 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
             entity.HasOne(b => b.Category)
                 .WithMany()
                 .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<RecurringTransaction>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+
+            entity.Property(r => r.Description).HasMaxLength(200).IsRequired();
+            entity.Property(r => r.Amount).HasPrecision(18, 2).IsRequired();
+            entity.Property(r => r.Notes).HasMaxLength(500);
+            entity.Property(r => r.CreatedBy).HasMaxLength(100);
+            entity.Property(r => r.UpdatedBy).HasMaxLength(100);
+
+            entity.HasOne(r => r.User)
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.Category)
+                .WithMany()
+                .HasForeignKey(r => r.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

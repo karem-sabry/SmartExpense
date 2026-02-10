@@ -12,7 +12,7 @@ public class BudgetReadDto
     public decimal Amount { get; set; }
     public int Month { get; set; }
     public int Year { get; set; }
-    public string Period { get; set; } = string.Empty;  
+    public string Period { get; set; } = string.Empty;
     public decimal Spent { get; set; }
     public decimal Remaining { get; set; }
     public decimal PercentageUsed { get; set; }

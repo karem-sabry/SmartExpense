@@ -65,7 +65,7 @@ public class AdminService : IAdminService
 
     public async Task<UserWithRolesDto?> GetUserByIdAsync(Guid userId)
     {
-        ValidateGuid(userId,nameof(userId));
+        ValidateGuid(userId, nameof(userId));
         var user = await _userManager.FindByIdAsync(userId.ToString());
 
         if (user == null)
@@ -88,8 +88,8 @@ public class AdminService : IAdminService
 
     public async Task<BasicResponse> MakeUserAdminAsync(Guid userId, string currentAdminEmail)
     {
-        ValidateGuid(userId,nameof(userId));
-        
+        ValidateGuid(userId, nameof(userId));
+
         var user = await _userManager.FindByIdAsync(userId.ToString());
 
         if (user == null)
@@ -221,7 +221,7 @@ public class AdminService : IAdminService
     public async Task<BasicResponse> DeleteUserAsync(Guid userId, string currentAdminEmail)
     {
         ValidateGuid(userId, nameof(userId));
-        
+
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
         {

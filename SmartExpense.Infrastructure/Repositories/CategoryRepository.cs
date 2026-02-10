@@ -5,7 +5,7 @@ using SmartExpense.Infrastructure.Data;
 
 namespace SmartExpense.Infrastructure.Repositories;
 
-public class CategoryRepository: GenericRepository<Category>, ICategoryRepository
+public class CategoryRepository : GenericRepository<Category>, ICategoryRepository
 {
     public CategoryRepository(AppDbContext context) : base(context)
     {

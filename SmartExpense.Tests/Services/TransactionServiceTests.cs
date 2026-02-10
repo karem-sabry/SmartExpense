@@ -178,7 +178,11 @@ public class TransactionServiceTests
         var transactions = new List<Transaction>
         {
             new() { Id = 1, UserId = _userId, Description = "Lunch", Category = category, TransactionDate = _now },
-            new() { Id = 2, UserId = _userId, Description = "Dinner", Category = category, TransactionDate = _now.AddDays(-1) }
+            new()
+            {
+                Id = 2, UserId = _userId, Description = "Dinner", Category = category,
+                TransactionDate = _now.AddDays(-1)
+            }
         };
 
         _transactionRepositoryMock
