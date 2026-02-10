@@ -8,6 +8,7 @@ public class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
     private ICategoryRepository? _categories;
+    private ITransactionRepository? _transactions;
     private IDbContextTransaction? _transaction;
 
     public UnitOfWork(AppDbContext context)
@@ -17,6 +18,9 @@ public class UnitOfWork : IUnitOfWork
 
     public ICategoryRepository Categories =>
         _categories ??= new CategoryRepository(_context);
+    
+    public ITransactionRepository Transactions =>
+        _transactions ??= new TransactionRepository(_context);
 
     public async Task<int> SaveChangesAsync()
     {
