@@ -8,7 +8,7 @@ namespace SmartExpense.Infrastructure.Services;
 
 public class TransactionService : ITransactionService
 {
-     private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
 
     public TransactionService(IUnitOfWork unitOfWork, IDateTimeProvider dateTimeProvider)

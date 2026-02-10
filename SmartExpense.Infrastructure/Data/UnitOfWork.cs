@@ -10,6 +10,7 @@ public class UnitOfWork : IUnitOfWork
     private ICategoryRepository? _categories;
     private ITransactionRepository? _transactions;
     private IBudgetRepository? _budgets;
+    private IRecurringTransactionRepository? _recurringTransactions;
     private IDbContextTransaction? _transaction;
 
     public UnitOfWork(AppDbContext context)
@@ -19,13 +20,16 @@ public class UnitOfWork : IUnitOfWork
 
     public ICategoryRepository Categories =>
         _categories ??= new CategoryRepository(_context);
-    
+
     public ITransactionRepository Transactions =>
         _transactions ??= new TransactionRepository(_context);
 
     public IBudgetRepository Budgets =>
         _budgets ??= new BudgetRepository(_context);
-    
+
+    public IRecurringTransactionRepository RecurringTransactions =>
+        _recurringTransactions ??= new RecurringTransactionRepository(_context);
+
     public async Task<int> SaveChangesAsync()
     {
         return await _context.SaveChangesAsync();

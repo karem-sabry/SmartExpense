@@ -23,7 +23,7 @@ public class AccountService : IAccountService
 
     public AccountService(IAuthTokenProcessor authTokenProcessor, UserManager<User> userManager,
         RoleManager<IdentityRole<Guid>> roleManager, IUserRepository userRepository,
-        ILogger<AccountService> logger, IDateTimeProvider dateTimeProvider,IEmailService emailService)
+        ILogger<AccountService> logger, IDateTimeProvider dateTimeProvider, IEmailService emailService)
     {
         _authTokenProcessor = authTokenProcessor;
         _userManager = userManager;

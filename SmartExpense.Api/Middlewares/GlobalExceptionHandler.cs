@@ -71,7 +71,7 @@ public class GlobalExceptionHandler : IExceptionHandler
         problemDetails.Type = $"https://httpstatuses.com/{statusCode}";
         problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
         problemDetails.Extensions["timestamp"] = DateTime.UtcNow;
-        
+
         //stack trace is only included in development
         if (_environment.IsDevelopment() && statusCode == 500)
         {

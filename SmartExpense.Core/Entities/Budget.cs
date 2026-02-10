@@ -9,9 +9,9 @@ public class Budget : IAuditable, IEntity, IUserOwnedEntity
     public Guid UserId { get; set; }
     public int CategoryId { get; set; }
     public decimal Amount { get; set; }
-    public int Month { get; set; }  
-    public int Year { get; set; }    
-    
+    public int Month { get; set; }
+    public int Year { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
     public string? CreatedBy { get; set; }

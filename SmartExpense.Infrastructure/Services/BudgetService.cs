@@ -100,7 +100,8 @@ public class BudgetService : IBudgetService
         );
 
         if (exists)
-            throw new ConflictException($"Budget already exists for {category.Name} in {GetPeriodDisplay(dto.Month, dto.Year)}");
+            throw new ConflictException(
+                $"Budget already exists for {category.Name} in {GetPeriodDisplay(dto.Month, dto.Year)}");
 
         // Validate period is not in the past (optional - you can allow past budgets)
         var budgetDate = new DateTime(dto.Year, dto.Month, 1);

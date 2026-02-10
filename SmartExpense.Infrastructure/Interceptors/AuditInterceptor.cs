@@ -20,6 +20,7 @@ public class AuditInterceptor : SaveChangesInterceptor
         _httpContextAccessor = httpContextAccessor;
         _dateTimeProvider = dateTimeProvider;
     }
+
     public override InterceptionResult<int> SavingChanges(
         DbContextEventData eventData,
         InterceptionResult<int> result)

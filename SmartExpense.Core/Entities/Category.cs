@@ -2,7 +2,7 @@
 
 namespace SmartExpense.Core.Entities;
 
-public class Category: IAuditable, IEntity
+public class Category : IAuditable, IEntity
 {
     public int Id { get; set; }
     public Guid? UserId { get; set; } // Nullable for system categories
@@ -11,7 +11,7 @@ public class Category: IAuditable, IEntity
     public string? Color { get; set; }
     public bool IsSystemCategory { get; set; } = false;
     public bool IsActive { get; set; } = true;
-    
+
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
     public string? CreatedBy { get; set; }
