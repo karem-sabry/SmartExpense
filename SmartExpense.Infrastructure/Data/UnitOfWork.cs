@@ -9,6 +9,7 @@ public class UnitOfWork : IUnitOfWork
     private readonly AppDbContext _context;
     private ICategoryRepository? _categories;
     private ITransactionRepository? _transactions;
+    private IBudgetRepository? _budgets;
     private IDbContextTransaction? _transaction;
 
     public UnitOfWork(AppDbContext context)
@@ -22,6 +23,9 @@ public class UnitOfWork : IUnitOfWork
     public ITransactionRepository Transactions =>
         _transactions ??= new TransactionRepository(_context);
 
+    public IBudgetRepository Budgets =>
+        _budgets ??= new BudgetRepository(_context);
+    
     public async Task<int> SaveChangesAsync()
     {
         return await _context.SaveChangesAsync();
