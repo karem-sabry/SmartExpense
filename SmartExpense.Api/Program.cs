@@ -307,7 +307,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 // Token Processing
 builder.Services.AddScoped<IAuthTokenProcessor, AuthTokenProcessorService>();
-
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>();
 // ====================================
 // CORS CONFIGURATION
 // ====================================
@@ -402,8 +403,6 @@ app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
-
-
+app.MapHealthChecks("/health");
 app.Run();
