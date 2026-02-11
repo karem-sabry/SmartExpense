@@ -297,14 +297,25 @@ public class RecurringTransactionService : IRecurringTransactionService
         if (!recurring.IsActive)
             return null;
 
-        var lastGenerated = recurring.LastGeneratedDate ?? recurring.StartDate.AddDays(-1);
-        var nextDate = GetNextOccurrence(recurring.StartDate, lastGenerated, recurring.Frequency);
+        try
+        {
+            var lastGenerated = recurring.LastGeneratedDate ?? recurring.StartDate.AddDays(-1);
+            var nextDate = GetNextOccurrence(recurring.StartDate, lastGenerated, recurring.Frequency);
 
-        // Check if next date is beyond end date
-        if (recurring.EndDate.HasValue && nextDate > recurring.EndDate.Value)
+            // Check if next date is beyond end date
+            if (recurring.EndDate.HasValue && nextDate > recurring.EndDate.Value)
+                return null;
+
+            // Safety check for valid date range
+            if (nextDate > DateTime.MaxValue.AddYears(-1) || nextDate < DateTime.MinValue.AddYears(1))
+                return null;
+
+            return nextDate;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
             return null;
-
-        return nextDate;
+        }
     }
 
     #endregion
